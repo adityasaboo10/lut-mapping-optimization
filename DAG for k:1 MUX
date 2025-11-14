@@ -1,0 +1,103 @@
+"""
+    Build a k:1 multiplexer using AND/OR gates.
+    Returns:
+        graph: node -> fanins
+        outputs: list with final output node name
+        gate_type: node -> gate type ("AND", "OR", "NOT", "PI")
+"""
+
+
+from typing import Dict, List, Tuple
+import math
+
+
+def build_mux(k: int) -> Tuple[Dict[str, List[str]], List[str], Dict[str, str]]:
+
+    graph: Dict[str, List[str]] = {}
+    gate_type: Dict[str, str] = {}
+
+    # ----------------------------------------------------------
+    # 1) Declare primary inputs: Data lines D0..D(k-1)
+
+    for i in range(k):
+        name = f"D{i}"  # to create inputs named D0,D1, etc using f string
+        graph[name] = []  # primary input meaning no fanins
+        gate_type[name] = "PI"  # thus PI
+
+    # 2) Declare select lines S0..S(log2(k)-1)
+    # ----------------------------------------------------------
+    sel_bits = math.ceil(math.log2(k))  # compute select lines needed based on k
+    for i in range(sel_bits):
+        name = f"S{i}"
+        graph[name] = []  # primary input
+        gate_type[name] = "PI"
+
+    # ----------------------------------------------------------
+    # 3) Build selection paths
+    #
+    # For each i in [0..k-1]:
+    #    Convert i to binary (length = sel_bits).
+    #    For each bit:
+    #        if bit == '1' b use S[j]
+    #        if bit == '0' b use NOT(S[j])
+    #
+    #    Then AND together all these select signals with D[i]
+    # ----------------------------------------------------------
+    and_nodes = []
+
+    for i in range(k):
+        binary = format(
+            i, f"0{sel_bits}b"
+        )  # to generate Select signal equals i (ie for choosing input D(i)
+
+        # Build list of input signals for the AND gate
+        and_inputs = []
+
+        for j, bit in enumerate(
+            binary
+        ):  # this block handels how the selec line should be bit by bit based on i
+            if bit == "1":
+                # use S[j] directly no need for not since needed bit is 1
+                and_inputs.append(f"S{j}")
+            else:
+                # we need NOT(S[j]), as needed bit is 0
+                not_name = f"not_S{j}"
+                # only create once
+                if not_name not in graph:
+                    graph[not_name] = [f"S{j}"]  # this creates the NOT gate
+                    gate_type[not_name] = "NOT"
+                and_inputs.append(not_name)
+
+        # Add the data input Di and thus succesfully completing the AND path here by adding Di
+        and_inputs.append(f"D{i}")
+    
+        # Create the AND gate node for this path
+        and_node = f"AND_path_{i}"   # example when i=2 the path becomes AND_path_2 = AND( NOT(S0), S1, NOT(S2), D2 )
+        graph[and_node] = and_inputs
+        gate_type[and_node] = "AND"
+        and_nodes.append(and_node)
+
+    # ----------------------------------------------------------
+    # 4) OR all AND paths to produce the final output
+    # ----------------------------------------------------------
+    out = "MUX_OUT"
+    graph[out] = and_nodes
+    gate_type[out] = "OR"
+
+    return graph, [out], gate_type
+    
+    
+# ----------------------------------------------------------
+# MAIN BLOCK (runs ONLY when file is executed directly)
+# ----------------------------------------------------------
+if __name__ == "__main__":
+    graph, outputs, gate_type = build_mux(4)   # 8:1 MUX
+
+    print("\nGRAPH:")
+    for node, fins in graph.items():
+        print(f"{node:12} -> {fins}")
+
+    print("\nOUTPUTS:", outputs)
+    print("\nGATE TYPES:")
+    for node, gtype in gate_type.items():
+        print(f"{node:12} : {gtype}")
