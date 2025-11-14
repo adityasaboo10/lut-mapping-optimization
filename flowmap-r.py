@@ -311,12 +311,23 @@ if __name__ == "__main__":
         )
 
     graph2 = {
-        "a": [], "b": [], "c": [], "d": [],
-        "and1": ["a", "b"],
-        "and2": ["c", "d"],
-        "xor1": ["and1", "and2"],
-        "or1":  ["and1", "c"],
-        "out":  ["xor1", "or1"],
+        "D0": [],
+        "D1": [],
+        "D2": [],
+        "D3": [],
+        "S0": [],
+        "S1": [],
+        "not1": ["S0"],
+        "not2": ["S1"],
+        "and1": ["not1", "not2", "D0"],
+        "not3": ["S0"],
+        "and2": ["not3", "S1", "D1"],
+        "not4": ["S1"],
+        "and3": ["S0", "not4", "D2"],
+        "and4": ["S0", "S1", "D3"],
+        "or1": ["and1", "and2"],
+        "or2": ["and3", "and4"],
+        "or3": ["or1", "or2"],
     }
     print("\n" + "=" * 72)
     print("FlowMap‑r on reconvergent example (K=3)")
