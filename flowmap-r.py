@@ -170,7 +170,7 @@ def area_recovery(
         depth_via_cut <= labels[v]   (do not increase depth)
         minimal area_flow
 
-    area_flow(v) = 1 + sum_{u in C \\ PIs} area_flow(u) / refcount(u)
+    area_flow(v) = 1 + sum_{u in C \ PIs} area_flow(u) / refcount(u)
     """
     topo, _ = topo_sort(graph)
     PIs = primary_inputs(graph)
@@ -179,7 +179,7 @@ def area_recovery(
     area_flow: Dict[str, float] = {}
     best_cut_area: Dict[str, Set[str]] = {}
 
-    # ✅ Use normal topological order so fanin costs exist when needed
+    # Use normal topological order so fanin costs exist when needed
     for v in topo:
         if v in PIs:
             area_flow[v] = 0.0
@@ -204,8 +204,14 @@ def area_recovery(
             # Fallback: among minimum‑depth cuts, pick by area proxy
             min_d = min(cut_depth[v].values())
             cands = [set(c) for c, dv in cut_depth[v].items() if dv == min_d]
+
             def proxy(C2: Set[str]) -> float:
-                return 1.0 + sum(area_flow.get(u, 0.0) / max(1, refcnt.get(u, 1)) for u in C2 if u not in PIs)
+                return 1.0 + sum(
+                    area_flow.get(u, 0.0) / max(1, refcnt.get(u, 1))
+                    for u in C2
+                    if u not in PIs
+                )
+
             best_cut = min(cands, key=proxy)
             best_cost = proxy(best_cut)
 
@@ -272,17 +278,28 @@ def map_with_area_optimized_flow(
     LUTs = build_cover(graph, best_cut_area, labels, outputs=outputs)
 
     if verbose:
-        print("Labels (depth):")
+        print("Labels (depth levels):")
         for n in sorted(labels, key=lambda x: (labels[x], x)):
-            print(f"  {n}: L{labels[n]}")
+            print(f"  {n}: depth {labels[n]}")
+
         print("\nChosen cuts (area‑optimized, depth‑preserving):")
         for n in labels:
             if n in primary_inputs(graph):
                 continue
             print(f"  {n}: {sorted(best_cut_area[n])}")
+
         print("\nLUT cover:")
-        for lut in LUTs:
-            print(f"  L{lut['level']}  {lut['output']} <= {lut['inputs']}")
+        print(f"  Total LUTs: {len(LUTs)}")
+
+        from collections import defaultdict
+        by_level: Dict[int, List[Tuple[int, Dict[str, object]]]] = defaultdict(list)
+        for idx, lut in enumerate(LUTs, start=1):
+            by_level[lut["level"]].append((idx, lut))
+
+        for level in sorted(by_level.keys()):
+            print(f"  Depth {level}:")
+            for idx, lut in by_level[level]:
+                print(f"    LUT{idx}: output={lut['output']} <= {lut['inputs']}")
 
     return labels, best_cut_area, LUTs
 
@@ -291,25 +308,6 @@ def map_with_area_optimized_flow(
 # Demo / unit test
 # =========================
 if __name__ == "__main__":
-    graph = {
-        "a": [],
-        "b": [],
-        "c": [],
-        "and1": ["a", "b"],
-        "or1":  ["and1", "c"],
-    }
-
-    for K in [2, 3, 6]:
-        print("\n" + "=" * 72)
-        print(f"FlowMap‑r mapping with K = {K}")
-        labels, chosen_cuts, LUTs = map_with_area_optimized_flow(
-            graph=graph,
-            K=K,
-            outputs=None,
-            cut_limit=None,
-            verbose=True,
-        )
-
     graph2 = {
         "D0": [],
         "D1": [],
@@ -329,8 +327,9 @@ if __name__ == "__main__":
         "or2": ["and3", "and4"],
         "or3": ["or1", "or2"],
     }
+
     print("\n" + "=" * 72)
-    print("FlowMap‑r on reconvergent example (K=3)")
+    print("FlowMap‑r on reconvergent example")
     labels, chosen_cuts, LUTs = map_with_area_optimized_flow(
         graph=graph2,
         K=3,
